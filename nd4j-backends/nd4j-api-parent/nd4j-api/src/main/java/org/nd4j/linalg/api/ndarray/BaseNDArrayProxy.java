@@ -41,7 +41,7 @@ public class BaseNDArrayProxy implements java.io.Serializable {
     protected int[] arrayShape;
     protected long length;
 	protected char arrayOrdering;
-    protected transient  DataBuffer data;    
+    protected transient  DataBuffer data;
 
     public BaseNDArrayProxy(INDArray anInstance) {
 		this.arrayShape = anInstance.shape();
@@ -49,8 +49,7 @@ public class BaseNDArrayProxy implements java.io.Serializable {
 		this.arrayOrdering = anInstance.ordering();
 		this.data =  anInstance.data();
         if(anInstance.isView()){
-            char instanceOrdering = anInstance.ordering();
-            INDArray dupInstance = anInstance.dup(instanceOrdering);
+            INDArray dupInstance = anInstance.dup();
             this.data = dupInstance.data();
 		}
     }
