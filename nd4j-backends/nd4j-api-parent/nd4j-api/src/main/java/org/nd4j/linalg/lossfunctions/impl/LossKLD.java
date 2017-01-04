@@ -17,7 +17,7 @@ import org.nd4j.linalg.ops.transforms.Transforms;
 @EqualsAndHashCode
 public class LossKLD implements ILossFunction {
 
-    private INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    private INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         //INDArray output = Nd4j.getExecutioner().execAndReturn(Nd4j.getOpFactory().createTransform(activationFn, preOutput.dup()));
         INDArray output = activationFn.getActivation(preOutput.dup(),true);
 
@@ -28,6 +28,12 @@ public class LossKLD implements ILossFunction {
         INDArray logRatio = Transforms.log(output.rdivi(labels), false);
 
         INDArray scoreArr = logRatio.muli(labels);
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != scoreArr.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match scoreArr.size(0)=" + scoreArr.size(0));
+            }
+            scoreArr.muliColumnVector(exampleWeights);
+        }
         if (mask != null) {
             scoreArr.muliColumnVector(mask);
         }
@@ -35,8 +41,8 @@ public class LossKLD implements ILossFunction {
     }
 
     @Override
-    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
 
         double score = scoreArr.sumNumber().doubleValue();
 
@@ -48,17 +54,23 @@ public class LossKLD implements ILossFunction {
     }
 
     @Override
-    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
         return scoreArr.sum(1);
     }
 
     @Override
-    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         //INDArray output = Nd4j.getExecutioner().execAndReturn(Nd4j.getOpFactory().createTransform(activationFn, preOutput.dup()));
         INDArray output = activationFn.getActivation(preOutput.dup(),true);
 
         INDArray dLda = labels.div(output).negi();
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != dLda.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match dLda.size(0)=" + dLda.size(0));
+            }
+            dLda.muliColumnVector(exampleWeights);
+        }
         INDArray grad = activationFn.backprop(preOutput, dLda).getFirst();      //TODO activation functions with params
 
         if (mask != null) {
@@ -69,12 +81,12 @@ public class LossKLD implements ILossFunction {
     }
 
     @Override
-    public Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
+    public Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
         //TODO: probably a more efficient way to do this...
 
         return new Pair<>(
-                computeScore(labels, preOutput, activationFn, mask, average),
-                computeGradient(labels, preOutput, activationFn, mask));
+                computeScore(labels, preOutput, activationFn, mask, exampleWeights, average),
+                computeGradient(labels, preOutput, activationFn, mask, exampleWeights));
     }
 
 

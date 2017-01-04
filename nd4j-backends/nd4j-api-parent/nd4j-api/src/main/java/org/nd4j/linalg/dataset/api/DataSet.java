@@ -199,6 +199,10 @@ public interface DataSet extends Iterable<org.nd4j.linalg.dataset.DataSet>, Seri
     INDArray getLabels();
 
     void setLabels(INDArray labels);
+    
+    INDArray getExampleWeights();
+    
+    void setExampleWeights(INDArray exampleWeights);
 
     /**
      * Equivalent to {@link #getFeatures()}

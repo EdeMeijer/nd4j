@@ -28,22 +28,22 @@ public class LossMSE extends LossL2 {
     }
 
     @Override
-    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
+    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
 
-        double score = super.computeScore(labels, preOutput, activationFn, mask, average);
+        double score = super.computeScore(labels, preOutput, activationFn, mask, exampleWeights, average);
         score /= (labels.size(1));
         return score;
     }
 
     @Override
-    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
-        INDArray scoreArr = super.computeScoreArray(labels, preOutput, activationFn, mask);
+    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
+        INDArray scoreArr = super.computeScoreArray(labels, preOutput, activationFn, mask, exampleWeights);
         return scoreArr.divi(labels.size(1));
     }
 
     @Override
-    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
-        INDArray gradients = super.computeGradient(labels, preOutput, activationFn, mask);
+    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
+        INDArray gradients = super.computeGradient(labels, preOutput, activationFn, mask, exampleWeights);
         return gradients.divi(labels.size(1));
     }
 

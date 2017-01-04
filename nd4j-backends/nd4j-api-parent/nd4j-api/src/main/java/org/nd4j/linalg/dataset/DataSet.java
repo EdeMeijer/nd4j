@@ -21,6 +21,8 @@ package org.nd4j.linalg.dataset;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+import lombok.Getter;
+import lombok.Setter;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.executioner.GridExecutioner;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
@@ -60,9 +62,11 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
 
     private List<String> columnNames = new ArrayList<>();
     private List<String> labelNames = new ArrayList<>();
-    private INDArray features, labels;
+    private INDArray features;
+    private INDArray labels;
     private INDArray featuresMask;
     private INDArray labelsMask;
+    @Getter @Setter private INDArray exampleWeights;
 
     private List<Serializable> exampleMetaData;
 
@@ -91,12 +95,20 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
     /**
      * Creates a dataset with the specified input matrix and labels
      *
-     * @param first  the feature matrix
-     * @param second the labels (these should be binarized label matrices such that the specified label
+     * @param features  the feature matrix
+     * @param labels the labels (these should be binarized label matrices such that the specified label
      *               has a value of 1 in the desired column with the label)
      */
-    public DataSet(INDArray first, INDArray second) {
-        this(first,second,null,null);
+    public DataSet(INDArray features, INDArray labels) {
+        this(features, labels, null, null);
+    }
+
+    public DataSet(INDArray features, INDArray labels, INDArray exampleWeights) {
+        this(features, labels, null, null, exampleWeights);
+    }
+
+    public DataSet(INDArray features, INDArray labels, INDArray featuresMask, INDArray labelsMask) {
+       this(features, labels, featuresMask, labelsMask, null);
     }
 
     /**Create a dataset with the specified input INDArray and labels (output) INDArray, plus (optionally) mask arrays
@@ -106,11 +118,12 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
      * @param featuresMask Mask array for features, may be null
      * @param labelsMask Mask array for labels, may be null
      */
-    public DataSet(INDArray features, INDArray labels, INDArray featuresMask, INDArray labelsMask) {
+    public DataSet(INDArray features, INDArray labels, INDArray featuresMask, INDArray labelsMask, INDArray exampleWeights) {
         this.features = features;
         this.labels = labels;
         this.featuresMask = featuresMask;
         this.labelsMask = labelsMask;
+        this.exampleWeights = exampleWeights;
 
         // we want this dataset to be fully committed to device
         if (Nd4j.getExecutioner() instanceof GridExecutioner)
@@ -157,6 +170,8 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
         int rankFeatures = first.getFeatures().rank();
         int rankLabels = first.getLabels().rank();
 
+        // TODO merge example weights
+        
         INDArray[] featuresToMerge = new INDArray[data.size()];
         INDArray[] labelsToMerge = new INDArray[data.size()];
         int count = 0;
@@ -373,6 +388,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
 
     @Override
     public org.nd4j.linalg.dataset.api.DataSet getRange(int from, int to) {
+        // TODO support example weights
         if (hasMaskArrays()) {
             INDArray featureMaskHere = featuresMask != null ? featuresMask.get(NDArrayIndex.interval(from, to)) : null;
             INDArray labelMaskHere = labelsMask != null ? labelsMask.get(NDArrayIndex.interval(from, to)) : null;
@@ -384,6 +400,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
 
     @Override
     public void load(InputStream from) {
+        // TODO example weights
         try {
             BufferedInputStream bis = new BufferedInputStream(from);
             DataInputStream dis = new DataInputStream(bis);
@@ -425,7 +442,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
 
     @Override
     public void save(OutputStream to) {
-
+        // TODO example weights
         byte included = 0;
         if(features != null) included |= BITMASK_FEATURES_PRESENT;
         if(labels != null){
@@ -517,6 +534,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
      */
     @Override
     public DataSet copy() {
+        // TODO example weights
         DataSet ret = new DataSet(getFeatures().dup(), getLabels().dup());
         if (getLabelsMaskArray() != null) ret.setLabelsMaskArray(getLabelsMaskArray().dup());
         if(getFeaturesMaskArray() != null) ret.setFeaturesMaskArray(getFeaturesMaskArray().dup());
@@ -534,6 +552,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
      */
     @Override
     public DataSet reshape(int rows, int cols) {
+        // TODO example weights
         DataSet ret = new DataSet(getFeatures().reshape(new int[]{rows, cols}), getLabels());
         return ret;
     }
@@ -562,6 +581,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
      * @param seed Seed to use for the random Number Generator
      */
     public void shuffle(long seed) {
+        // TODO example weights
         //note here we use the same seed with different random objects guaranteeing same order
 
         List<INDArray> arrays = new ArrayList<>();
@@ -764,6 +784,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
             INDArray slice = getFeatureMatrix().slice(i);
             return new DataSet(slice.reshape(ArrayUtil.combine(new int[]{1},slice.shape())),getLabels().slice(i));
         }
+        // TODO example weights
         return new DataSet(getFeatures().slice(i), getLabels().slice(i));
     }
 
@@ -825,6 +846,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
      */
     @Override
     public void filterAndStrip(int[] labels) {
+        // TODO example weights
         DataSet filtered = filterBy(labels);
         List<Integer> newLabels = new ArrayList<>();
 
@@ -902,6 +924,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
 
     @Override
     public List<DataSet> asList() {
+        // TODO example weights
         List<DataSet> list = new ArrayList<>(numExamples());
         INDArray featuresHere, labelsHere, featureMaskHere, labelMaskHere;
         int rank = getFeatures().rank();
@@ -975,6 +998,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
      */
     @Override
     public SplitTestAndTrain splitTestAndTrain(int numHoldout) {
+        // TODO example weights
         int numExamples = numExamples();
         if(numExamples <= 1) throw new IllegalStateException("Cannot split DataSet with <= 1 rows (data set has " + numExamples + " example)");
         if (numHoldout >= numExamples)
@@ -1166,6 +1190,8 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
             throw new IllegalArgumentException("Invalid index for adding a row");
         getFeatures().putRow(i, d.getFeatures());
         getLabels().putRow(i, d.getLabels());
+        // TODO example weights
+        // TODO masks
     }
 
 
@@ -1250,6 +1276,8 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
             outcomes.putRow(i, get(picked).getLabels());
 
         }
+        // TODO example weights
+        // TODO masks
         return new DataSet(examples, outcomes);
 
     }
@@ -1291,6 +1319,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
                 builder.append("\n===========OUTPUT MASK===================\n")
                         .append(getLabelsMaskArray().toString().replaceAll(";","\n"));
             }
+            // TODO example weights
             return builder.toString();
         }
         else {
@@ -1402,6 +1431,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
         if (!(o instanceof DataSet)) return false;
 
         DataSet d = (DataSet) o;
+        // TODO example weights
 
         if(!equalOrBothNull(features,d.features)) return false;
         if(!equalOrBothNull(labels, d.labels)) return false;
@@ -1421,6 +1451,7 @@ public class DataSet implements org.nd4j.linalg.dataset.api.DataSet {
         result = 31 * result + (getLabels() != null ? getLabels().hashCode() : 0);
         result = 31 * result + (getFeaturesMaskArray() != null ? getFeaturesMaskArray().hashCode() : 0);
         result = 31 * result + (getLabelsMaskArray() != null ? getLabelsMaskArray().hashCode() : 0);
+        // TODO example weights
         return result;
     }
 }

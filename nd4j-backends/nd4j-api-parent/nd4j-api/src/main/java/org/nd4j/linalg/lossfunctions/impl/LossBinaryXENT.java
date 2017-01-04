@@ -51,7 +51,7 @@ public class LossBinaryXENT implements ILossFunction {
         this.weights = weights;
     }
 
-    private INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    private INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         INDArray scoreArr;
         if (activationFn instanceof ActivationSoftmax) {
             //Use LogSoftMax op to avoid numerical issues when calculating score
@@ -76,6 +76,13 @@ public class LossBinaryXENT implements ILossFunction {
             scoreArr.muliRowVector(weights);
         }
 
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != preOutput.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match output.size(0)=" + preOutput.size(0));
+            }
+            scoreArr.muliColumnVector(exampleWeights);
+        }
+
         if (mask != null) {
             scoreArr.muliColumnVector(mask);
         }
@@ -83,8 +90,8 @@ public class LossBinaryXENT implements ILossFunction {
     }
 
     @Override
-    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
 
         double score = -scoreArr.sumNumber().doubleValue();
 
@@ -96,13 +103,13 @@ public class LossBinaryXENT implements ILossFunction {
     }
 
     @Override
-    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
         return scoreArr.sum(1).muli(-1);
     }
 
     @Override
-    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         INDArray output = activationFn.getActivation(preOutput.dup(),true);
 
         INDArray numerator = output.sub(labels);
@@ -118,6 +125,12 @@ public class LossBinaryXENT implements ILossFunction {
             }
             grad.muliRowVector(weights);
         }
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != output.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match output.size(0)=" + output.size(0));
+            }
+            grad.muliColumnVector(exampleWeights);
+        }
 
         if (mask != null) {
             grad.muliColumnVector(mask);
@@ -127,12 +140,12 @@ public class LossBinaryXENT implements ILossFunction {
     }
 
     @Override
-    public Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
+    public Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
         //TODO: probably a more efficient way to do this...
 
         return new Pair<>(
-                computeScore(labels, preOutput, activationFn, mask, average),
-                computeGradient(labels, preOutput, activationFn, mask));
+                computeScore(labels, preOutput, activationFn, mask, exampleWeights, average),
+                computeGradient(labels, preOutput, activationFn, mask, exampleWeights));
     }
 
 

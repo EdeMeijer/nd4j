@@ -138,7 +138,7 @@ public class LossFunctionGradientChecks extends BaseNd4jTest {
 
             System.out.printf("Starting test: %s, %s, input shape = %s\n", lf, afn, Arrays.toString(p.shape()));
 
-            INDArray grad = lf.computeGradient(l,p,activationInstance(afn),null);
+            INDArray grad = lf.computeGradient(l,p,activationInstance(afn),null, null);
 
             NdIndexIterator iter = new NdIndexIterator(l.shape());
             while(iter.hasNext()){
@@ -146,9 +146,9 @@ public class LossFunctionGradientChecks extends BaseNd4jTest {
 
                 double before = p.getDouble(next);
                 p.putScalar(next, before+epsilon);
-                double scorePlus = lf.computeScore(l,p,activationInstance(afn),null,true);
+                double scorePlus = lf.computeScore(l,p,activationInstance(afn),null, null,true);
                 p.putScalar(next, before-epsilon);
-                double scoreMinus = lf.computeScore(l,p,activationInstance(afn),null,true);
+                double scoreMinus = lf.computeScore(l,p,activationInstance(afn),null, null,true);
                 p.putScalar(next, before);
 
                 double scoreDelta = scorePlus - scoreMinus;

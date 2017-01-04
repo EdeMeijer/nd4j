@@ -1,5 +1,7 @@
 package org.nd4j.linalg.dataset;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.math3.util.Pair;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.api.ops.executioner.GridExecutioner;
@@ -20,6 +22,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
     private INDArray[] labels;
     private INDArray[] featuresMaskArrays;
     private INDArray[] labelsMaskArrays;
+    @Getter @Setter private INDArray exampleWeights;
 
     private List<Serializable> exampleMetaData;
 
@@ -30,13 +33,24 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
 
     /** MultiDataSet constructor with single features/labels input, no mask arrays */
     public MultiDataSet(INDArray features, INDArray labels){
-        this( (features != null ? new INDArray[]{features} : null),
-                (labels != null ? new INDArray[]{labels} : null));
+        this(features, labels, null);
+    }
+
+    public MultiDataSet(INDArray features, INDArray labels, INDArray exampleWeights){
+        this( 
+            (features != null ? new INDArray[]{features} : null),
+            (labels != null ? new INDArray[]{labels} : null), 
+            exampleWeights
+        );
     }
 
     /** MultiDataSet constructor with no mask arrays */
     public MultiDataSet(INDArray[] features, INDArray[] labels){
         this(features,labels,null,null);
+    }
+    
+    public MultiDataSet(INDArray[] features, INDArray[] labels, INDArray exampleWeights){
+        this(features,labels,null,null, exampleWeights);
     }
 
     /**
@@ -47,19 +61,25 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
      * @param labelsMaskArrays The mask arrays for the labels. May be null. Typically used with variable-length time series models, etc
      */
     public MultiDataSet(INDArray[] features, INDArray[] labels, INDArray[] featuresMaskArrays, INDArray[] labelsMaskArrays ){
+       this(features, labels, featuresMaskArrays, labelsMaskArrays, null);
+    }
+    
+    public MultiDataSet(INDArray[] features, INDArray[] labels, INDArray[] featuresMaskArrays, INDArray[] labelsMaskArrays, INDArray exampleWeights){
         if(features != null && featuresMaskArrays != null && features.length != featuresMaskArrays.length){
             throw new IllegalArgumentException("Invalid features / features mask arrays combination: "
-                    + "features and features mask arrays must not be different lengths");
+                + "features and features mask arrays must not be different lengths");
         }
         if(labels != null && labelsMaskArrays != null && labels.length != labelsMaskArrays.length){
             throw new IllegalArgumentException("Invalid labels / labels mask arrays combination: "
-                    + "labels and labels mask arrays must not be different lengths");
+                + "labels and labels mask arrays must not be different lengths");
         }
+        // TODO validate example weights length
 
         this.features = features;
         this.labels = labels;
         this.featuresMaskArrays = featuresMaskArrays;
         this.labelsMaskArrays = labelsMaskArrays;
+        this.exampleWeights = exampleWeights;
 
         if (Nd4j.getExecutioner() instanceof GridExecutioner)
             ((GridExecutioner) Nd4j.getExecutioner()).flushQueueBlocking();
@@ -190,6 +210,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
 
     @Override
     public void save(OutputStream to) throws IOException {
+        // TODO example weights
         int numFArr = (features == null ? 0 : features.length);
         int numLArr = (labels == null ? 0 : labels.length);
         int numFMArr = (featuresMaskArrays == null ? 0 : featuresMaskArrays.length);
@@ -226,6 +247,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
 
     @Override
     public void load(InputStream from) throws IOException {
+        // TODO example weights
         try (DataInputStream dis = new DataInputStream(from)) {
             int numFArr = dis.readInt();
             int numLArr = dis.readInt();
@@ -258,6 +280,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
 
     @Override
     public List<org.nd4j.linalg.dataset.api.MultiDataSet> asList() {
+        // TODO example weights
         int nExamples = features[0].size(0);
 
         List<org.nd4j.linalg.dataset.api.MultiDataSet> list = new ArrayList<>();
@@ -317,6 +340,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
      */
     @Override
     public MultiDataSet copy() {
+        // TODO example weights
         MultiDataSet ret = new MultiDataSet(copy(getFeatures()), copy(getLabels()));
         if (labelsMaskArrays != null) {
             ret.setLabelsMaskArray(copy(labelsMaskArrays));
@@ -345,6 +369,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
      * @return a single MultiDataSet object, containing the arrays of
      */
     public static MultiDataSet merge(Collection<? extends org.nd4j.linalg.dataset.api.MultiDataSet> toMerge){
+        // TODO example weights
         if(toMerge.size() == 1){
             org.nd4j.linalg.dataset.api.MultiDataSet mds = toMerge.iterator().next();
             if(mds instanceof MultiDataSet) return (MultiDataSet) mds;
@@ -569,6 +594,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
                 builder.append("\n=== OUTPUT MASK ===\n")
                         .append(getLabelsMaskArray(i).toString().replaceAll(";", "\n"));
             }
+            // TODO example weights
         }
         return builder.toString();
     }
@@ -583,6 +609,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
         if(!bothNullOrEqual(features, m.features)) return false;
         if(!bothNullOrEqual(labels, m.labels)) return false;
         if(!bothNullOrEqual(featuresMaskArrays, m.featuresMaskArrays)) return false;
+        // TODO example weights
         return bothNullOrEqual(labelsMaskArrays, m.labelsMaskArrays);
     }
 
@@ -621,6 +648,7 @@ public class MultiDataSet implements org.nd4j.linalg.dataset.api.MultiDataSet {
                 result = result * 31 + lm.hashCode();
             }
         }
+        // TODO example weights
         return result;
     }
 }

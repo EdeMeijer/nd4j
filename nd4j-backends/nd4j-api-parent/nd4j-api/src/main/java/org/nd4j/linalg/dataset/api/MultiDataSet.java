@@ -62,6 +62,10 @@ public interface MultiDataSet extends Serializable {
      */
     void setLabels(int idx, INDArray labels);
 
+    INDArray getExampleWeights();
+
+    void setExampleWeights(INDArray exampleWeights);
+
     /**
      * Whether there are any mask arrays (features or labels) present for this MultiDataSet
      */

@@ -52,7 +52,7 @@ public class LossMCXENT implements ILossFunction {
         this.weights = weights;
     }
 
-    private INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    private INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         INDArray scoreArr;
         //if ("softmax".equals(activationFn)) {
         if (activationFn instanceof ActivationSoftmax) {
@@ -69,9 +69,15 @@ public class LossMCXENT implements ILossFunction {
         //Weighted loss function
         if (weights != null) {
             if (weights.length() != scoreArr.size(1)) {
-                throw new IllegalStateException("Weights vector (length " + weights.length() + ") does not match output.size(1)=" + preOutput.size(1));
+                throw new IllegalStateException("Weights vector (length " + weights.length() + ") does not match scoreArr.size(1)=" + scoreArr.size(1));
             }
             scoreArr.muliRowVector(weights);
+        }
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != scoreArr.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match scoreArr.size(0)=" + scoreArr.size(0));
+            }
+            scoreArr.muliColumnVector(exampleWeights);
         }
 
         if (mask != null) {
@@ -81,8 +87,8 @@ public class LossMCXENT implements ILossFunction {
     }
 
     @Override
-    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
 
         double score = -scoreArr.sumNumber().doubleValue();
 
@@ -94,24 +100,34 @@ public class LossMCXENT implements ILossFunction {
     }
 
     @Override
-    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
         return scoreArr.sum(1).muli(-1);
     }
 
     @Override
-    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         INDArray grad;
         //INDArray output = Nd4j.getExecutioner().execAndReturn(Nd4j.getOpFactory().createTransform(activationFn, preOutput.dup()));
         INDArray output = activationFn.getActivation(preOutput.dup(),true);
 
         if (activationFn instanceof ActivationSoftmax) {
             //Weighted loss function
-            if (weights != null) {
-                if (weights.length() != output.size(1)) {
-                    throw new IllegalStateException("Weights vector (length " + weights.length() + ") does not match output.size(1)=" + output.size(1));
+            if (weights != null || exampleWeights != null) {
+                INDArray temp = labels.dup();
+                if (weights != null) {
+                    if (weights.length() != output.size(1)) {
+                        throw new IllegalStateException("Weights vector (length " + weights.length() + ") does not match output.size(1)=" + output.size(1));
+                    }
+                    temp.muliRowVector(weights);
                 }
-                INDArray temp = labels.mulRowVector(weights);
+                if (exampleWeights != null) {
+                    if (exampleWeights.length() != output.size(0)) {
+                        throw new IllegalStateException("Weights vector (length " + exampleWeights.length() + ") does not match output.size(0)=" + output.size(0));
+                    }
+                    temp.muliColumnVector(exampleWeights);
+                }
+                
                 INDArray col = temp.sum(1);
                 grad = output.mulColumnVector(col).sub(temp);
             } else {
@@ -119,17 +135,22 @@ public class LossMCXENT implements ILossFunction {
             }
         } else {
             //INDArray sigmaPrimeZ = Nd4j.getExecutioner().execAndReturn(Nd4j.getOpFactory().createTransform(activationFn, preOutput.dup()).derivative());
-
             INDArray dLda = output.rdivi(labels).negi();
-            grad = activationFn.backprop(preOutput, dLda).getFirst();       //TODO activation function with weights
-
+            
             //Weighted loss function
             if (weights != null) {
                 if (weights.length() != output.size(1)) {
-                    throw new IllegalStateException("Weights vector (length " + weights.length() + ") does not match output.size(1)=" + output.size(1));
+                    throw new IllegalStateException("Weights vector (length " + weights.length() + ") does not match dLda.size(1)=" + dLda.size(1));
                 }
-                grad.muliRowVector(weights);
+                dLda.muliRowVector(weights);
             }
+            if (exampleWeights != null) {
+                if (exampleWeights.length() != dLda.size(0)) {
+                    throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match dLda.size(0)=" + dLda.size(0));
+                }
+                dLda.muliColumnVector(exampleWeights);
+            }
+            grad = activationFn.backprop(preOutput, dLda).getFirst();       //TODO activation function with weights
         }
 
         //Loss function with masking
@@ -141,12 +162,12 @@ public class LossMCXENT implements ILossFunction {
     }
 
     @Override
-    public Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
+    public Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
         //TODO: probably a more efficient way to do this...
 
         return new Pair<>(
-                computeScore(labels, preOutput, activationFn, mask, average),
-                computeGradient(labels, preOutput, activationFn, mask));
+                computeScore(labels, preOutput, activationFn, mask, exampleWeights, average),
+                computeGradient(labels, preOutput, activationFn, mask, exampleWeights));
     }
 
 

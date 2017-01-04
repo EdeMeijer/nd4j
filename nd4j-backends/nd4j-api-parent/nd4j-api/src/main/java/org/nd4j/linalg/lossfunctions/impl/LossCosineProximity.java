@@ -12,7 +12,7 @@ import org.nd4j.linalg.lossfunctions.ILossFunction;
 @EqualsAndHashCode
 public class LossCosineProximity implements ILossFunction {
 
-    public INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    public INDArray scoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         /*
          mean of -(y.dot(yhat)/||y||*||yhat||)
          */
@@ -26,13 +26,20 @@ public class LossCosineProximity implements ILossFunction {
         scoreArr.diviColumnVector(yhatmag);
         scoreArr.diviColumnVector(ymag);
 
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != scoreArr.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match scoreArr.size(0)=" + scoreArr.size(0));
+            }
+            scoreArr.muliColumnVector(exampleWeights);
+        }
+
         if (mask != null) scoreArr.muliColumnVector(mask);
         return scoreArr.muli(-1);
     }
 
     @Override
-    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public double computeScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
 
         double score = scoreArr.sumNumber().doubleValue();
 
@@ -42,13 +49,13 @@ public class LossCosineProximity implements ILossFunction {
     }
 
     @Override
-    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
-        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask);
+    public INDArray computeScoreArray(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
+        INDArray scoreArr = scoreArray(labels, preOutput, activationFn, mask, exampleWeights);
         return scoreArr.sum(1);
     }
 
     @Override
-    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask) {
+    public INDArray computeGradient(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights) {
         INDArray yhat = activationFn.getActivation(preOutput.dup(),true);
         INDArray yL2norm = labels.norm2(1);
 
@@ -64,6 +71,13 @@ public class LossCosineProximity implements ILossFunction {
         dLda.diviColumnVector(yhatL2norm.mul(yhatL2normSq));
         dLda.muli(-1);
 
+        if (exampleWeights != null) {
+            if (exampleWeights.length() != dLda.size(0)) {
+                throw new IllegalStateException("Example Weights vector (length " + exampleWeights.length() + ") does not match dLda.size(0)=" + dLda.size(0));
+            }
+            dLda.muliColumnVector(exampleWeights);
+        }
+
         //dL/dz
         INDArray gradients = activationFn.backprop(preOutput, dLda).getFirst();      //TODO loss functions with params
 
@@ -75,12 +89,12 @@ public class LossCosineProximity implements ILossFunction {
     }
 
     @Override
-    public org.apache.commons.math3.util.Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, boolean average) {
+    public org.apache.commons.math3.util.Pair<Double, INDArray> computeGradientAndScore(INDArray labels, INDArray preOutput, IActivation activationFn, INDArray mask, INDArray exampleWeights, boolean average) {
         //TODO: probably a more efficient way to do this...
 
         return new Pair<>(
-                computeScore(labels, preOutput, activationFn, mask, average),
-                computeGradient(labels, preOutput, activationFn, mask));
+                computeScore(labels, preOutput, activationFn, mask, exampleWeights, average),
+                computeGradient(labels, preOutput, activationFn, mask, exampleWeights));
     }
 
     @Override
